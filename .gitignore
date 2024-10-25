@@ -33,3 +33,9 @@ tags
 *.swp
 
 data
+
+*~
+
+archives/
+
+elixir/
