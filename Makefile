@@ -1,4 +1,4 @@
-.PHONE: all deps compile clean shell
+.PHONY: all deps compile clean shell
 
 SHELL := BASH_ENV=.rc /bin/bash --noprofile
 
