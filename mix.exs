@@ -61,7 +61,8 @@ defmodule PulsarEx.MixProject do
       {:connection, "~> 1.1"},
       {:poolboy, "~> 1.5"},
       {:timex, "~> 3.7"},
-      {:jason, "~> 1.2"}
+      {:jason, "~> 1.2"},
+      {:oauth2, "~> 2.1"}
     ]
   end
 

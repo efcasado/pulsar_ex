@@ -42,6 +42,7 @@ defmodule PulsarEx.Connection do
 
   alias PulsarEx.Proto.{
     CommandConnect,
+    FeatureFlags,
     CommandConnected,
     CommandPing,
     CommandPong,
@@ -282,7 +283,7 @@ defmodule PulsarEx.Connection do
       ) do
     with {:ok, socket} <- do_connect(host, port, cluster_opts),
          {:ok, max_message_size} <- do_handshake(socket) do
-      :inet.setopts(socket, active: true)
+      :ssl.setopts(socket, active: true)
       Process.send_after(self(), :send_ping, @ping_interval)
 
       Logger.debug("Started connection on broker")
@@ -944,14 +945,14 @@ defmodule PulsarEx.Connection do
 
   # ================== handle_info =====================
   @impl true
-  def handle_info({:tcp_passive, _}, state), do: {:noreply, state}
+  def handle_info({:ssl_passive, _}, state), do: {:noreply, state}
 
-  def handle_info({:tcp_closed, _}, state), do: {:stop, {:shutdown, :closed}, state}
+  def handle_info({:ssl_closed, _}, state), do: {:stop, {:shutdown, :closed}, state}
 
-  def handle_info({:tcp_error, _, reason}, state), do: {:stop, {:shutdown, reason}, state}
+  def handle_info({:ssl_error, _, reason}, state), do: {:stop, {:shutdown, reason}, state}
 
   def handle_info(
-        {:tcp, _socket, data},
+        {:ssl, _socket, data},
         %{cluster: %Cluster{cluster_name: cluster_name}, buffer: buffer} = state
       ) do
     Logger.debug("Receiving data from broker")
@@ -1913,10 +1914,27 @@ defmodule PulsarEx.Connection do
   end
 
   defp do_handshake(socket) do
+    oauth2_settings = Application.get_env(:pulsar_ex, :oauth2)
+    client = OAuth2.Client.new([
+      strategy: OAuth2.Strategy.ClientCredentials,
+      client_id: oauth2_settings[:client_id],
+      client_secret: oauth2_settings[:client_secret],
+      site: oauth2_settings[:site]
+    ])
+
+    resp = OAuth2.Client.get_token!(client, audience: oauth2_settings[:audience])
+    token = Jason.decode!(resp.token.access_token)["access_token"]
+
     command =
       CommandConnect.new(
         client_version: @client_version,
-        protocol_version: @protocol_version
+        protocol_version: @protocol_version,
+        auth_method_name: "token",
+        auth_data: token,
+        feature_flags: FeatureFlags.new(
+          supports_auth_refresh: true,
+          supports_broker_entry_metadata: true
+        )
       )
 
     with :ok <- :ssl.send(socket, encode_command(command)),
