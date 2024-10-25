@@ -330,7 +330,7 @@ defmodule PulsarEx.Connection do
         producer_id: producer_id
       )
 
-    case :gen_tcp.send(socket, encode_command(request)) do
+    case :ssl.send(socket, encode_command(request)) do
       :ok ->
         Logger.debug("Sent CommandCloseProducer for producer [#{producer_id}] on broker")
 
@@ -378,7 +378,7 @@ defmodule PulsarEx.Connection do
         consumer_id: consumer_id
       )
 
-    case :gen_tcp.send(socket, encode_command(request)) do
+    case :ssl.send(socket, encode_command(request)) do
       :ok ->
         Logger.debug("Sent CommandCloseConsumer for consumer [#{consumer_id}] on broker")
 
@@ -459,7 +459,7 @@ defmodule PulsarEx.Connection do
 
     request = %{request | metadata: Keyword.get(producer_opts, :properties) |> to_kv()}
 
-    case :gen_tcp.send(socket, encode_command(request)) do
+    case :ssl.send(socket, encode_command(request)) do
       :ok ->
         Logger.debug(
           "Sent CommandProducer for producer [#{producer_id}] writing to topic [#{topic_name}] on broker"
@@ -555,7 +555,7 @@ defmodule PulsarEx.Connection do
 
     request = %{request | metadata: Keyword.get(consumer_opts, :properties) |> to_kv()}
 
-    case :gen_tcp.send(socket, encode_command(request)) do
+    case :ssl.send(socket, encode_command(request)) do
       :ok ->
         Logger.debug(
           "Sent CommandSubscribe for consumer [#{consumer_id}] to topic [#{topic_name}] with subscription [#{subscription}] in [#{sub_type}] mode on broker"
@@ -608,7 +608,7 @@ defmodule PulsarEx.Connection do
         topic: topic_name
       )
 
-    case :gen_tcp.send(socket, encode_command(request)) do
+    case :ssl.send(socket, encode_command(request)) do
       :ok ->
         Logger.debug("Sent CommandPartitionedTopicMetadata for topic [#{topic_name}] on broker")
 
@@ -660,7 +660,7 @@ defmodule PulsarEx.Connection do
         authoritative: authoritative
       )
 
-    case :gen_tcp.send(socket, encode_command(request)) do
+    case :ssl.send(socket, encode_command(request)) do
       :ok ->
         Logger.debug("Sent CommandLookupTopic for topic [#{topic_name}] on broker")
 
@@ -707,7 +707,7 @@ defmodule PulsarEx.Connection do
         messagePermits: permits
       )
 
-    case :gen_tcp.send(socket, encode_command(command)) do
+    case :ssl.send(socket, encode_command(command)) do
       :ok ->
         Logger.debug(
           "Sent CommandFlow for consumer [#{consumer_id}] with [#{permits}] permits on broker"
@@ -753,7 +753,7 @@ defmodule PulsarEx.Connection do
         message_ids: message_ids
       )
 
-    case :gen_tcp.send(socket, encode_command(command)) do
+    case :ssl.send(socket, encode_command(command)) do
       :ok ->
         Logger.debug(
           "Sent CommandRedeliverUnacknowledgedMessages for consumer [#{consumer_id}] with #{length(msg_ids)} redeliver on broker"
@@ -809,7 +809,7 @@ defmodule PulsarEx.Connection do
         txnid_most_bits: nil
       )
 
-    case :gen_tcp.send(socket, encode_command(request)) do
+    case :ssl.send(socket, encode_command(request)) do
       :ok ->
         Logger.debug(
           "Sent CommandAck for consumer [#{consumer_id}] with #{length(msg_ids)} acks on broker"
@@ -859,7 +859,7 @@ defmodule PulsarEx.Connection do
 
     request = encode_messages(messages)
 
-    case :gen_tcp.send(socket, request) do
+    case :ssl.send(socket, request) do
       :ok ->
         Logger.debug(
           "Sent #{length(messages)} messages in batch for producer [#{producer_id}] on broker"
@@ -906,7 +906,7 @@ defmodule PulsarEx.Connection do
 
     request = encode_message(message)
 
-    case :gen_tcp.send(socket, request) do
+    case :ssl.send(socket, request) do
       :ok ->
         Logger.debug("Sent message for producer [#{producer_id}] on broker")
 
@@ -997,7 +997,7 @@ defmodule PulsarEx.Connection do
   def handle_info(:send_ping, %{socket: socket} = state) do
     Logger.debug("Sending CommandPing on broker")
 
-    case :gen_tcp.send(socket, encode_command(CommandPing.new())) do
+    case :ssl.send(socket, encode_command(CommandPing.new())) do
       :ok ->
         Logger.debug("Sent CommandPing on broker")
 
@@ -1032,7 +1032,7 @@ defmodule PulsarEx.Connection do
   def handle_info(:send_pong, %{socket: socket} = state) do
     Logger.debug("Sending CommandPong on broker")
 
-    case :gen_tcp.send(socket, encode_command(CommandPong.new())) do
+    case :ssl.send(socket, encode_command(CommandPong.new())) do
       :ok ->
         Logger.debug("Sent CommandPong on broker")
 
@@ -1087,7 +1087,7 @@ defmodule PulsarEx.Connection do
     Logger.debug("Closing connection from broker")
 
     if socket do
-      :gen_tcp.close(socket)
+      :ssl.close(socket)
     end
 
     Enum.each(requests, &reply_error(&1, :closed))
@@ -1099,7 +1099,7 @@ defmodule PulsarEx.Connection do
     Logger.debug("Closing connection from broker")
 
     if socket do
-      :gen_tcp.close(socket)
+      :ssl.close(socket)
     end
 
     Enum.each(requests, &reply_error(&1, :closed))
@@ -1111,7 +1111,7 @@ defmodule PulsarEx.Connection do
     Logger.error("Closing connection from broker, #{inspect(err)}")
 
     if socket do
-      :gen_tcp.close(socket)
+      :ssl.close(socket)
     end
 
     Enum.each(requests, &reply_error(&1, err))
@@ -1123,7 +1123,7 @@ defmodule PulsarEx.Connection do
     Logger.error("Existing connection from broker, #{inspect(reason)}")
 
     if socket do
-      :gen_tcp.close(socket)
+      :ssl.close(socket)
     end
 
     Enum.each(requests, &reply_error(&1, :exit))
@@ -1909,7 +1909,7 @@ defmodule PulsarEx.Connection do
   defp do_connect(host, port, cluster_opts) do
     socket_opts = Keyword.get(cluster_opts, :socket_opts, []) |> optimize_socket_opts()
     connection_timeout = Keyword.get(cluster_opts, :connection_timeout, @connection_timeout)
-    :gen_tcp.connect(to_charlist(host), port, socket_opts, connection_timeout)
+    :ssl.connect(to_charlist(host), port, socket_opts, connection_timeout)
   end
 
   defp do_handshake(socket) do
@@ -1919,8 +1919,8 @@ defmodule PulsarEx.Connection do
         protocol_version: @protocol_version
       )
 
-    with :ok <- :gen_tcp.send(socket, encode_command(command)),
-         {:ok, data} <- :gen_tcp.recv(socket, 0),
+    with :ok <- :ssl.send(socket, encode_command(command)),
+         {:ok, data} <- :ssl.recv(socket, 0),
          {[{%CommandConnected{} = connected, _}], _} <- decode(data) do
       {:ok, connected.max_message_size}
     else
@@ -1937,6 +1937,7 @@ defmodule PulsarEx.Connection do
         {:nodelay, _} -> true
         {:active, _} -> true
         {:keepalive, _} -> true
+        _ -> false
       end)
 
     [:binary, nodelay: true, active: false, keepalive: true] ++ socket_opts
